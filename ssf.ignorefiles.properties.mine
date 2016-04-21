@@ -1,0 +1,57 @@
+# A file that contains which XML files should be removed/redacted from the 
+# automated imports for a specific environment.  For example:
+#  sandbox.ignorefiles.properties - lists files not imported into SANDBOX 
+#  uat.ignorefiles.properties     - lists files not imported into UAT
+#  prod.ignorefiles.properties    - lists files not imported into PRODuction
+#
+# The file format:
+#  The # signs are comments, like unix shell script fashion.
+#  Files to ignore should be named in path relative to the .../config/ 
+#  directory of the services standard build.  One file name should be
+#  specified per line of this file.  Unix slashes (/) should be used
+#  as separators on both Windows and unix environments. BUT NOTE:
+# The file names are from when the files are staged in to the 
+# .../build/extract/WEB-INF/config/custom/... directories so all of the 
+# file names start with a "custom/" prefix and not a "config/" prefix.
+#
+# Examples:
+#  custom/Application/Application-AD-Partner.xml
+#  custom/Workflow/Workflow-QuickTermination.xml
+#
+# All non-filename lines in this file should start with a # (comment sign).
+#
+# custom/Application/Application-Your-App-Here.xml
+# custom/Workflow/Workflow-Insert-Your-Workflow-Filename.xml
+
+
+#ADD THESE TO IGNORE THE OOTB CUSTOM OBJECTS
+custom/SSF_Frameworks/Approvals/Configure/SP_CST_ApprovalFramework_Custom_RuleLibrary.xml
+custom/SSF_Frameworks/Approvals/Configure/SP_CST_ApprovalObjectMappings_Custom.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_ApprovalFramework_Custom_RuleLibrary.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_CST_ApprovalAfterScript_DefaultMerger_Rule.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_CST_ApprovalValidatorScript_Default_Rule.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_CST_ApprovalWorkItemDescription_Default_Rule.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_CST_GetApprovalTypes_Step_Rule.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_CST_GetApprovers_Director_Rule.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_CST_GetApprovers_Manager_Rule.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_CST_GetApprovers_Owner_Rule.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_CST_GetApprovers_Supervisor_Rule.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_CST_PreApproval_DefaultSplitter_Rule.xml
+custom/SSF_Frameworks/Approvals/Samples/SP_TestLCMProvWf.xml
+custom/SSF_Frameworks/Approvals/Samples/Test/SP_TestLCMProvWf.xml
+custom/SSF_Frameworks/Approvals/Samples/Test/UT.xml
+custom/SSF_Frameworks/ProvisionProcessor/Samples/SP_SAMPLE_WF.xml
+custom/SSF_Frameworks/FieldValue/Configure/SP_CUSTOM_FieldValue_RulesLibrary.xml
+custom/SSF_Frameworks/ProvisionProcessor/Configure/SP_EmailTest_Custom.xml
+custom/SSF_Features/Joiner/Configure/SP_Custom_Joiner_RulesLibrary.xml
+custom/SSF_Features/Joiner/Configure/SP_Joiner_Mappings_Custom.xml
+custom/SSF_Features/Leaver/Configure/SP_Custom_Leaver_RulesLibrary.xml
+custom/SSF_Features/Leaver/Configure/SP_Leaver_Mappings_Custom.xml
+custom/SSF_Features/AttributeSynch/Configure/SP_Custom_AttrSynch_RulesLibrary.xml
+custom/SSF_Features/AttributeSynch/Configure/SP_AttrSynch_Mappings_Custom.xml
+custom/SSF_Tools/MultiThreadedBeanShellKit/examples/Rule-BSMT-Cleanup-LockingTest.xml
+custom/SSF_Tools/MultiThreadedBeanShellKit/examples/Rule-BSMT-Init-LockingTest.xml
+custom/SSF_Tools/MultiThreadedBeanShellKit/examples/Rule-BSMT-PerItem-LockingTest.xml
+custom/SSF_Tools/MultiThreadedBeanShellKit/examples/Rule-BSMT-QBuild-LockingTest.xml
+custom/SSF_Tools/MultiThreadedBeanShellKit/examples/Rule-StandAlone-BeanShell-MultiThreading-Item-Rule.xml
+custom/SSF_Tools/MultiThreadedBeanShellKit/examples/Rule-StandAlone-BeanShell-MultiThreading-Queue-Builder.xml

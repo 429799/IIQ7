@@ -1,0 +1,158 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule name="%%SP_ATTR_SYNCH_RULES_OBJECT_NAME%%" language="beanshell">
+	<ReferencedRules>
+	    <Reference class="sailpoint.object.Rule" name="SP Provisioning Rules Library"/>
+	    <Reference class="sailpoint.object.Rule" name="SP Role Assigment Rule Library"/>
+    </ReferencedRules>
+	<Source>
+	<![CDATA[
+	import sailpoint.api.SailPointFactory;
+	import sailpoint.api.SailPointContext;
+	import sailpoint.api.Provisioner;
+	import sailpoint.object.*;
+	import sailpoint.object.ProvisioningPlan.AttributeRequest;
+	import sailpoint.object.ProvisioningPlan.AccountRequest;
+    import sailpoint.object.ProvisioningPlan.Operation; 
+	import sailpoint.tools.Util;
+    import sailpoint.tools.Message;
+    import sailpoint.tools.GeneralException;
+    import java.sql.Connection;
+	import java.sql.PreparedStatement;
+	import java.sql.ResultSet;
+	import java.sql.SQLException;
+	import java.sql.DriverManager;
+    import java.sql.Timestamp;
+	import java.util.*;
+	import java.text.*;
+	import javax.naming.Context;
+	import javax.naming.InitialContext;
+	import javax.sql.DataSource;
+	import sailpoint.api.PasswordGenerator;
+	
+	
+    import org.apache.commons.logging.Log;
+	import org.apache.commons.logging.LogFactory;
+
+	private static Log logger = LogFactory.getLog("rule.SP.AttrSynch.RulesLibrary");
+	
+	/******************************************************************************
+		TODO:  FILL IN FOLLOWING AttrSynch METHODS
+	******************************************************************************/
+	/*
+		In all rules that receive the workflow param, any workflow variable is accessible by doing workflow.get, such as:
+		
+			String identityName = workflow.get("identityName");
+	*/
+	
+	public static boolean isAttrSynchCustomTriggerRule(SailPointContext context, Identity previousIdentity, Identity newIdentity){
+		boolean flag = false;
+		
+		return flag;
+	}
+	
+	public static ProvisioningPlan buildCustomAttrSynchPlan(SailPointContext context, Workflow workflow){
+		ProvisioningPlan plan = new ProvisioningPlan();
+		return plan;
+	}
+	
+	/* Return the request Type */
+	public static String getRequestTypeRule(SailPointContext context, Workflow workflow){
+		String requestType = "AttrSynch";
+		
+		return requestType;
+	}
+	
+	/* Return prov success email */
+	public static String getProvSuccessEmailTemplateRule(SailPointContext context, Workflow workflow){
+		String val = "AttrSynch Success Email Template";
+		
+		return val;
+	}
+	
+	/* Return prov failure email */
+	public static String getProvFailureEmailTemplateRule(SailPointContext context, Workflow workflow){
+		String val = "AttrSynch Failure Email Template";
+		
+		return val;
+	}
+	
+	/* Return approved email */
+	public static String getApprovedEmailTemplateRule(SailPointContext context, Workflow workflow){
+		String val = "AttrSynch Approved Email Template";
+		
+		return val;
+	}
+	
+	/* Return rejected email */
+	public static String getRejectedEmailTemplateRule(SailPointContext context, Workflow workflow){
+		String val = "AttrSynch Rejected Email Template";
+		
+		return val;
+	}
+	
+	/* Return prov success email to */
+	public static String getProvSuccessEmailToRule(SailPointContext context, Workflow workflow){
+		Identity identity = context.getObject(Identity.class, workflow.get("identityName"));
+		String val = identity.getEmail();
+		
+		context.decache(identity);
+		identity = null;
+		
+		return val;
+	}
+	
+	/* Return prov failure email to */
+	public static String getProvFailureEmailToRule(SailPointContext context, Workflow workflow){
+		Identity identity = context.getObject(Identity.class, workflow.get("identityName"));
+		String val = identity.getEmail();
+		
+		context.decache(identity);
+		identity = null;
+		
+		return val;
+	}
+	
+	/* Return approved email to */
+	public static String getApprovedEmailToRule(SailPointContext context, Workflow workflow){
+		Identity identity = context.getObject(Identity.class, workflow.get("identityName"));
+		String val = identity.getEmail();
+		
+		context.decache(identity);
+		identity = null;
+		
+		return val;
+	}
+	
+	/* Return rejected email to */
+	public static String getRejectedEmailToRule(SailPointContext context, Workflow workflow){
+		String val = "somedefaultaddress@sailpoint.com";
+		
+		return val;
+	}
+	
+	/* Do any updates to workflow variables before ProvisioningPlan is compiled */
+	public static void beforePlanRule(SailPointContext context, Workflow workflow){
+		logger.trace("Getting extension attributes that can be used for customizations");
+		Attributes identityModel = initWorkflowAttributesVar(workflow, "identityModel");
+		Attributes spExtAttrs = initWorkflowAttributesVar(workflow, "spExtAttrs");
+		
+		//TODO:  CAN PUT LOGIC HERE TO INITIALIZE VALUES
+		
+		workflow.put("identityModel", identityModel);
+		workflow.put("spExtAttrs", spExtAttrs);
+	}
+	
+	/* Do any updates to workflow variables before ProvisioningProject is provisioned */
+	public static void beforeProvisionRule(SailPointContext context, Workflow workflow){
+		
+	}
+	
+	/* Do any updates to workflow variables after ProvisioningProject is provisioned */
+	public static void afterProvisionRule(SailPointContext context, Workflow workflow){
+		
+	}
+
+	]]>
+	</Source>
+</Rule>

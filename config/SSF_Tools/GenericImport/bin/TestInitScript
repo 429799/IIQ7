@@ -1,0 +1,135 @@
+// The generic importer persists the state of all 
+// variables across all beanshell scripts
+
+import sailpoint.object.Bundle;
+import sailpoint.object.Application;
+import sailpoint.object.Identity;
+import sailpoint.object.QueryOptions;
+import sailpoint.object.Filter;
+import java.util.ArrayList;
+import sailpoint.api.ManagedAttributer;
+import sailpoint.object.ManagedAttribute;
+import sailpoint.object.Profile;
+
+String ROLE_TYPE = "functional";
+
+//String APPLICATION_NAME = "RWEST_Application_ActiveDirectory";
+//String ATTRIBUTE_NAME = "memberOf";
+
+String APPLICATION_NAME = "RWEST_Application_EFET";
+String ATTRIBUTE_NAME = "Type";
+String ROOT_ROLE_OU = "Shared_Area_Functional_Roles";
+
+// Function to create the Role from a managed attribute
+void createRole(String roleName, String workgroupName, String sharedPath, List owners) {
+
+	String value = "cn=" + roleName;
+	
+	if (log.isDebugEnabled()) log.debug("Query for " + value);
+	
+	QueryOptions qo = new QueryOptions();
+	
+	qo.addFilter(Filter.eq("application.id", application.getId()));
+	qo.addFilter(Filter.eq("attribute", ATTRIBUTE_NAME));
+	qo.addFilter(Filter.eq( "type", ManagedAttribute.Type.Entitlement));
+	qo.addFilter(Filter.ignoreCase(Filter.like("value", value, Filter.MatchMode.START)));
+	 
+	ManagedAttribute ma = tool.getSingleObjectFromSearch(ManagedAttribute.class, qo);
+	if (ma == null) {
+		if (log.isDebugEnabled()) log.debug("Managed attribute does not exist, no update needed");
+	 } else {
+	 
+	 	if (log.isDebugEnabled()) log.debug("Managed attribute exists.");
+	
+		// Does the workgroup exist?
+		Identity wg = context.getObjectByName(Identity.class, workgroupName);
+		if (wg == null) {
+			wg = new Identity();
+			wg.setName(workgroupName);
+			wg.setWorkgroup(true);
+			context.saveObject(wg);
+			context.commitTransaction();
+			wg = context.getObjectByName(Identity.class, workgroupName);
+		}
+	
+	
+		// Does a Functional role exist for this MA?
+		Bundle role = context.getObjectByName(Bundle.class, roleName);
+		if (role == null) {
+			role = new Bundle();
+			role.setName(roleName);
+			
+			// Set the display name
+			String info = sharedPath;
+			if (roleName.endsWith("1")) {
+				info = info.concat(", Read only access");
+			} else if (roleName.endsWith("2")) {
+				info = info.concat(", Read & write access");
+			}
+			
+			role.setDisplayName(info);
+	
+			role.setType(ROLE_TYPE);
+			role.setOwner(wg);
+			
+			// Set the root ou created in the init script.
+			role.addInheritance(rootOu);
+			
+			Profile profile = new Profile();
+			profile.setApplication(application);
+			profile.addConstraint(Filter.eq(ATTRIBUTE_NAME, ma.getValue()));
+			
+			role.add(profile);
+			
+			
+			context.saveObject(role);
+			context.commitTransaction();
+			role = context.getObjectByName(Bundle.class, roleName);
+			
+			// Add the description to the role
+			tool.addLocalizedAttribute(role, "description", info,"en_US");
+			
+		}
+		
+		// Convert the owners to IIQ Identities
+		for (String owner : owners) {
+			
+			if (log.isDebugEnabled()) log.debug("Checking owner: " + owner);
+			
+			qo = new QueryOptions();
+			Filter [] filters = new Filter[1];
+			filters[0] = Filter.eq("rnumber", owner);
+			qo.add (filters);
+			Identity ownerObj = tool.getSingleObjectFromSearch(Identity.class, qo);
+			
+			if (owner != null) {
+		        if (log.isDebugEnabled()) log.debug("Adding Identity '" + ownerObj.getName() + "' to " + wg.getName());  
+		        ownerObj.add(wg);
+		        context.saveObject(ownerObj);
+		        context.commitTransaction();
+			}
+		}
+		
+	}
+}
+
+
+// Ensure a root container for any roles are available.
+Bundle rootOu = context.getObjectByName(Bundle.class, ROOT_ROLE_OU);
+if (rootOu == null) {
+	rootOu = new Bundle();
+	rootOu.setName(ROOT_ROLE_OU);
+	rootOu.setType("organizational");
+	rootOu.setDisplayName(ROOT_ROLE_OU.replace("_"," "));
+	context.saveObject(rootOu);
+	context.commitTransaction();
+	rootOu = context.getObjectByName(Bundle.class, ROOT_ROLE_OU);
+}
+
+// Get the application with the entitlements
+Application application = context.getObjectByName(Application.class, APPLICATION_NAME);
+if (application == null) {
+	// Serious problem, no app then no managed attributes!
+	throw new GeneralException("Could not find application " + APPLICATION_NAME + " to get managed attributes from.");
+}
+	

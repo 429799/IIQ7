@@ -1,0 +1,160 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule name="SP Field Value Rules Library" language="beanshell">
+	<ReferencedRules>
+	<Reference class="sailpoint.object.Rule" name="%%SP_CUSTOM_FV_RULE_LIBRARY_NAME%%"/>
+    </ReferencedRules>
+	<Source>
+	<![CDATA[
+	import sailpoint.api.SailPointFactory;
+	import sailpoint.api.SailPointContext;
+	import sailpoint.api.Provisioner;
+	import sailpoint.object.*;
+	import sailpoint.object.ProvisioningPlan.AttributeRequest;
+	import sailpoint.object.ProvisioningPlan.AccountRequest;
+    import sailpoint.object.ProvisioningPlan.Operation; 
+	import sailpoint.tools.Util;
+    import sailpoint.tools.Message;
+    import sailpoint.tools.GeneralException;
+    import java.sql.Connection;
+	import java.sql.PreparedStatement;
+	import java.sql.ResultSet;
+	import java.sql.SQLException;
+	import java.sql.DriverManager;
+    import java.sql.Timestamp;
+	import java.util.*;
+	import java.text.*;
+	import javax.naming.Context;
+	import javax.naming.InitialContext;
+	import javax.sql.DataSource;
+	import java.lang.reflect.*;
+	
+	
+    import org.apache.commons.logging.Log;
+	import org.apache.commons.logging.LogFactory;
+
+	private static Log logger = LogFactory.getLog("rule.SP.FieldValue.RulesLibrary");
+	
+	
+	public static Object getDynamicFieldValueRule(SailPointContext context, Identity identity,
+		sailpoint.object.Field field) throws Exception {
+		logger.trace("Enter getDynamicFieldValueRule");
+		
+		logger.trace("Have field: " + field);
+		
+		if (field == null){
+			return "what?";
+		}
+		String template = field.getTemplate();
+		
+		String fieldName = field.getName();
+		String appName = field.getApplication();
+		String op = "Create";
+		
+		if (template != null){
+			op = template;
+		}
+		
+		logger.trace("Template: " + template);
+		logger.trace("Field name: " + fieldName);
+		logger.trace("App name: " + appName);
+		logger.trace("Op: " + op);
+		
+		return getDynamicFieldValueRule(context,identity,appName,fieldName,op);
+	}
+	
+	public static Object getDynamicFieldValueWithDefaultRule(SailPointContext context, Identity identity,
+		sailpoint.object.Field field) throws Exception {
+		logger.trace("Enter getDynamicFieldValueRule");
+		
+		logger.trace("Have field: " + field);
+		
+		if (field == null){
+			return "what?";
+		}
+		String template = field.getTemplate();
+		
+		String fieldName = field.getName();
+		String appName = field.getApplication();
+		String op = "Create";
+		
+		if (template != null){
+			op = template;
+		}
+		
+		Object defaultValue = field.getDefaultValue();
+		
+		logger.trace("Template: " + template);
+		logger.trace("Field name: " + fieldName);
+		logger.trace("App name: " + appName);
+		logger.trace("Op: " + op);
+		
+		return getDynamicFieldValueWithDefaultRule(context,identity,appName,fieldName,op,defaultValue);
+	}
+	
+	public static Object getDynamicFieldValueRule(SailPointContext context, Identity identity,
+		String appName, String fieldName, String op) throws Exception {
+		logger.trace("Enter getDynamicFieldValueRule");
+		Object val = null;
+		
+		String aName = appName;
+		
+		if (appName != null){
+			aName=appName.replaceAll(" ", "_");
+		}
+		
+		String fName = fieldName.replaceAll("-", "_");
+		fName = fName.replaceAll(" ", "_");
+                fName = fName.replaceAll("\\.", "_");
+		
+		String methodName = "getFV_" + aName + "_" + fName + "_Rule"; 
+		
+		Object[] params = {context,identity,op};
+		
+		try {
+			logger.trace("Dynamically invoke method: " + methodName);
+			val = this.invokeMethod(methodName, params);
+		} catch (Exception e){
+			logger.error("Exception with value of field { " + fieldName + " }, invoking method, " + methodName + ": " + e);
+			val = "CHECK CONFIG";
+		}
+		
+		logger.trace("Exit getDynamicFieldValueRule: " + val);
+		return val;
+	}
+	
+	public static Object getDynamicFieldValueWithDefaultRule(SailPointContext context, Identity identity,
+		String appName, String fieldName, String op, Object defaultValue) throws Exception {
+		logger.trace("Enter getDynamicFieldValueRule");
+		Object val = null;
+		
+		String aName = appName;
+		
+		if (appName != null){
+			aName=appName.replaceAll(" ", "_");
+		}
+		
+		String fName = fieldName.replaceAll("-", "_");
+		fName = fName.replaceAll(" ", "_");
+                fName = fName.replaceAll("\\.", "_");
+		
+		String methodName = "getFV_" + aName + "_" + fName + "_Rule"; 
+		
+		Object[] params = {context,identity,op,defaultValue};
+		
+		try {
+			logger.trace("Dynamically invoke method: " + methodName);
+			val = this.invokeMethod(methodName, params);
+		} catch (Exception e){
+			logger.error("Exception with value of field { " + fieldName + " }, invoking method, " + methodName + ": " + e);
+			val = "CHECK CONFIG";
+		}
+		
+		logger.trace("Exit getDynamicFieldValueRule: " + val);
+		return val;
+	}
+	
+
+	]]>
+	</Source>
+</Rule>

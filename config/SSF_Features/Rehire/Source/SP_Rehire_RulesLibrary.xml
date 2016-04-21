@@ -1,0 +1,308 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule name="SP Rehire Rules Library" language="beanshell">
+	<ReferencedRules>
+	    <Reference class="sailpoint.object.Rule" name="SP Provisioning Rules Library"/>
+	    <Reference class="sailpoint.object.Rule" name="SP Role Assigment Rule Library"/>
+	    <Reference class="sailpoint.object.Rule" name="SP Attr Synch Rules Library"/>
+    </ReferencedRules>
+	<Source>
+	<![CDATA[
+	import sailpoint.api.SailPointFactory;
+	import sailpoint.api.SailPointContext;
+	import sailpoint.api.Provisioner;
+	import sailpoint.object.*;
+	import sailpoint.object.ProvisioningPlan.AttributeRequest;
+	import sailpoint.object.ProvisioningPlan.AccountRequest;
+    import sailpoint.object.ProvisioningPlan.Operation; 
+	import sailpoint.tools.Util;
+    import sailpoint.tools.Message;
+    import sailpoint.tools.GeneralException;
+    import java.sql.Connection;
+	import java.sql.PreparedStatement;
+	import java.sql.ResultSet;
+	import java.sql.SQLException;
+	import java.sql.DriverManager;
+    import java.sql.Timestamp;
+	import java.util.*;
+	import java.text.*;
+	import javax.naming.Context;
+	import javax.naming.InitialContext;
+	import javax.sql.DataSource;
+	import sailpoint.api.PasswordGenerator;
+	import sailpoint.api.Matchmaker;
+	import sailpoint.api.IdentityService;
+	
+	
+    import org.apache.commons.logging.Log;
+	import org.apache.commons.logging.LogFactory;
+
+	private static Log aslogger = LogFactory.getLog("rule.SP.Rehire.RulesLibrary");
+	
+	public static boolean isTriggerRehireRule(SailPointContext context, Identity previousIdentity, Identity newIdentity){
+		aslogger.trace("Enter isTriggerRehireRule");
+		boolean flag = false;
+		
+		String currStatus = "";
+
+        if(newIdentity == null || newIdentity == void){
+        	aslogger.warn("New identity objects are null");
+        	return flag;
+        }
+        
+        if(previousIdentity == null || previousIdentity == void){
+        	aslogger.warn("Prev identity objects are null");
+        	return flag;
+        }
+        
+        String identityName = newIdentity.getName();
+        
+        Custom mappingObj = getRehireMappingObject(context);
+		
+		if (mappingObj != null){
+		
+			String triggerType = mappingObj.get("Trigger Type");
+			
+			aslogger.debug("Have the trigger type: " + triggerType);
+			if ("Custom Rule".equalsIgnoreCase(triggerType)){
+				aslogger.trace("Determine if trigger using custom rule.  Getting the rule name ");
+				String customRule = mappingObj.get("Trigger Custom Rule");
+				
+				aslogger.trace("Determine if trigger using custom rule: " + customRule);
+					
+				HashMap params = new HashMap();
+				
+				//params.put("context", context);
+				params.put("previousIdentity", previousIdentity);
+				params.put("newIdentity", newIdentity);
+				
+				aslogger.trace("Run the rule");
+				flag = runFrameworkRule(context, customRule, params);
+			} else if("Selector".equalsIgnoreCase(triggerType)){
+				aslogger.trace("Determine if trigger using a selector");
+				Matchmaker matchMaker = new Matchmaker(context);
+				IdentitySelector idSelector = mappingObj.get("Trigger Field Selector");
+				
+				flag = matchMaker.isMatch(idSelector, newIdentity);
+			} else if("Compare Links".equalsIgnoreCase(triggerType)){
+				aslogger.trace("Determine if trigger by comparing links");
+				
+				flag = isNewLinkChanged(previousIdentity, newIdentity, mappingObj);
+			} else {
+				aslogger.warn("Unknown trigger type: " + triggerType);
+				
+			}
+		}
+		
+		aslogger.trace("Exit isTriggerRehireRule: " + flag);
+		return flag;
+	}
+	
+	public boolean isNewLinkChanged(Identity previousIdentity, Identity newIdentity, Custom mappingObj){
+		aslogger.trace("Enter isNewLinkChanged");
+		boolean flag = false;
+	
+		List checkLinks = mappingObj.get("Trigger Compare Links");
+		Attributes linkSchemas = mappingObj.get("Trigger Compare Links Schemas");
+		IdentityService is = new IdentityService(context);
+		Application app;
+		
+		aslogger.trace("Have link names to check: " + checkLinks);
+		
+		if (checkLinks == null || checkLinks.isEmpty()){
+			aslogger.warn("No links to check");
+			return false;
+		}
+		
+		aslogger.trace("Loop the link names");
+		for (String checkLink : checkLinks){
+			aslogger.trace("Checking link: " + checkLink);
+			
+			app = context.getObject(Application.class, checkLink);
+			
+			List prevLinks = is.getLinks(previousIdentity, app);
+			List newLinks = is.getLinks(newIdentity, app);
+			
+			aslogger.trace("Check if either list is empty: " + prevLinks + ", " + newLinks);
+			
+			if (prevLinks == null || prevLinks.isEmpty() || newLinks == null || newLinks.isEmpty()){
+				aslogger.warn("One of the lists is empty");
+				continue;
+			}
+			
+			aslogger.trace("Making rather big assumption here that there's only only instance of an account that would be checked in this manner.");
+			Link prevLink = prevLinks.get(0);
+			Link newLink = newLinks.get(0);
+		
+			List linkAttrs = linkSchemas.get(checkLink);
+			
+			aslogger.trace("Have list of attrs to check: " + linkAttrs);
+			
+			if (linkAttrs == null || linkAttrs.isEmpty()){
+				aslogger.warn("No attr names to compare");
+				continue;
+			}
+			
+			aslogger.trace("Loop the schema attrs");
+			for (String attrName : linkAttrs){
+				aslogger.trace("Comparing the old and new value of: " + attrName);
+				
+				Object prevVal = prevLink.getAttribute(attrName);
+				Object newVal = newLink.getAttribute(attrName);
+				
+				aslogger.trace("Check if prev and new val are differnt");
+				flag = isFieldValueUpdated(prevVal, newVal);
+				
+				aslogger.trace("Check flag val: " + flag);
+				if (flag){
+					aslogger.debug("Old and new value are different for: " + attrName);
+					break;
+				}
+			}
+			
+		}
+	
+	
+		aslogger.trace("Exit isNewLinkChanged: " + flag);
+		return flag;
+	}
+	
+	
+	public ProvisioningPlan getDynamicRehirePlan(SailPointContext context, String identityName, Workflow workflow){
+		aslogger.trace("Enter getDynamicRehirePlan");
+		
+		Identity identity = context.getObjectByName(Identity.class, identityName);
+		
+		ProvisioningPlan plan = getDynamicRehirePlan (context, identity, workflow);
+		
+		return plan;
+	}
+	
+	public ProvisioningPlan getDynamicRehirePlan(SailPointContext context, Identity identity){
+		logger.trace("Enter getDynamicRehirePlan");
+		
+		ProvisioningPlan plan = new ProvisioningPlan();
+		plan.setIdentity(identity);	
+		
+		Custom mappingObj = getRehireMappingObject(context);
+		
+		if (mappingObj != null){
+			logger.trace("Get the con types");
+			List conTypes = mappingObj.get("Plan Construction Types");
+			
+			boolean enableAccts = false;
+			List enAcctsList = new ArrayList();
+			List links = identity.getLinks();
+			List addedEnables = new ArrayList();
+			
+			if (conTypes.contains("Enable Accounts")){
+				logger.debug("Enable Accounts is true");
+				enableAccounts = true;
+				enAcctsList = mappingObj.get("Enable Accounts Applications");
+			}
+			
+			if (conTypes.contains("Dynamic Roles")){
+				logger.debug("Process Dynamic Roles for Rehire");
+				plan = getDynamicRolesPlan(context, identity);
+			}
+			
+			if (conTypes.contains("Attribute Synch")){
+				logger.debug("Process Attribute Synch for Rehire");
+				
+				AccountRequest.Operation acctOp = AccountRequest.Operation.Modify;
+				
+				for (Link link : links){
+					app = link.getApplication();
+					appName = app.getName();
+					nativeId = link.getNativeIdentity();
+					instance = link.getInstance();
+					
+					aslogger.debug("Check if also enable accounts");
+					if (enableAccounts && enAcctsList.contains(appName)){
+						acctOp = AccountRequest.Operation.Enable;
+					}
+					
+					aslogger.debug("Get attr requests for " + nativeId + ":" + instance + " on " + appName);
+					List attrReqs = getUpdateAttributeRequests(context, identity, link);
+					
+					aslogger.trace("Have attrReqs: " + attrReqs);
+					if (attrReqs != null && !attrReqs.isEmpty()){
+						
+						aslogger.debug("Attr reqs not null.  Build account request");
+						
+						AccountRequest acctReq = new AccountRequest(acctOp, appName, instance, nativeId);
+						acctReq.addAll(attrReqs);
+						
+						String ae = appName + "-" + instance + "-" + nativeId;
+						addedEnables.add(ae);
+						
+						aslogger.debug("Add account request: " + acctReq.toXml());
+						plan.add(acctReq);
+						
+					}
+				}
+			}
+			
+			if (conTypes.contains("Enable Accounts")){
+				aslogger.trace("Process Enable Accounts for Rehire");
+				AccountRequest.Operation acctOp = AccountRequest.Operation.Enable;
+				
+				for (Link link : links){
+					app = link.getApplication();
+					appName = app.getName();
+					nativeId = link.getNativeIdentity();
+					instance = link.getInstance();
+					
+					String ae = appName + "-" + instance + "-" + nativeId;
+					AccountRequest acctReq = new AccountRequest(acctOp, appName, instance, nativeId);
+					
+					if (!addedEnables.contains(ae)){
+						aslogger.debug("Add account request: " + acctReq.toXml());
+						plan.add(acctReq);
+					}
+				}
+			}
+			
+			if (conTypes.contains("Custom Rule")){
+				aslogger.trace("Process Custom Rule for Rehire");
+				String customRule = mappingObj.get("Plan Construction Custom Rule");
+				
+				HashMap params = new HashMap();
+				
+				params.put("context", context);
+				params.put("identity", identity);
+				params.put("plan", plan);
+				
+				try {
+					logger.trace("Run the rule");
+					plan = runFrameworkRule(context, customRule, params);
+				} catch (Exception re){
+					logger.error(" EXCEPTION RUNNING RULE/SCRIPT: " + re.toString());
+					return null;
+				}
+				
+			} 
+			
+			
+		}
+		
+		plan.setComments("Adding Rehire Access");
+		
+		logger.trace("Set plan identity " + identity);
+		plan.setIdentity(identity);
+		
+		logger.trace("Exit getDynamicRehirePlan: " + plan.toXml());
+		return plan;
+	}
+	
+	public static Custom getRehireMappingObject(SailPointContext context){
+		aslogger.trace("Enter getRehireMappingObject");
+		
+		Custom mappingObj = context.getObjectByName(Custom.class, "%%SP_REHIRE_CUSTOM_OBJECT_NAME%%");
+		aslogger.trace("Exit getRehireMappingObject: " + mappingObj);
+		return mappingObj;
+	}
+	
+	]]>
+	</Source>
+</Rule>

@@ -1,0 +1,10 @@
+// Ensure the entitlement exists.
+
+String workgroupName = row.get("groupName");
+String groupName = row.get("groupName") + "-1";
+String value = "cn=" + groupName;
+
+createRole(workgroupName + "-1", workgroupName, row.get("sharedPath"),row.get("owners"));
+createRole(workgroupName + "-2", workgroupName, row.get("sharedPath"),row.get("owners"));
+
+

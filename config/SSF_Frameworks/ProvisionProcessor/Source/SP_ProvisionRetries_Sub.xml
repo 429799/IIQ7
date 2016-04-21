@@ -1,0 +1,287 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Workflow PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Workflow created="1366653899511" libraries="Identity,IdentityRequest" name="SP Provision with retries Sub" type="Subprocess">
+  <Variable input="true" name="project" output="true" required="true">
+    <Description>
+      Project that will be provisioned.
+    </Description>
+  </Variable>
+  <Variable initializer="script:new Integer(60);" input="true" name="provisioningRetryThreshold" type="integer">
+    <Description>
+      The interval in minutes to wait to retry the request defaults to 
+      60 minutes.  The retryInterval will be read from the underlying
+      applications involved in the retry provisioning activity and
+      the max interval defined across all applications will be used .
+      If an interval is not specified on any of the Applications 
+      we'll fall back to the setting in this variable which defaultws
+      to an hour.
+    </Description>
+  </Variable>
+  <Variable editable="true" initializer="script:new Integer(5);" input="true" name="maxRetries" type="integer">
+    <Description>
+       The maximum number of retries that will be attempted before failure 
+       of the provisioning activities.  A value of -1 will execute
+       retries indefinetly.
+ 
+       Like provisioningRetry the value will be read from the
+       application, if not defined on the application 
+       we'll fall back to this setting which will default to -1.
+    </Description>
+  </Variable>
+  <Variable initializer="false" input="true" name="enableRetryRequest">
+    <Description>
+      When set to true it will disable the retries loop and let the 
+      Provision step launch requests to handle the retries.  Enabling
+      this flag will enable some older functionality.
+    </Description>
+  </Variable>
+  <Variable editable="true" initializer="true" input="true" name="foregroundProvisioning">
+    <Description>
+      Normally provisioning is done in a step that uses the "background"
+      option to force the workflow to be suspend and be resumed in a
+      background task thread.  This prevents the browser session from
+      hanging since provision can sometimes take a long time.  For demos
+      and testing it can be better to do this in the foreground so that
+      provisioning will have been performed when control is returned to the
+      user.  This prevents having to run the Perform Maintenance task to 
+      see the resutls of the request.
+    </Description>
+  </Variable>
+  <Variable input="true" name="disableIdentityRequests">
+    <Description>
+      May be passed by the calling workflow to disable processing of
+      IdentityRequest objects after provisioning.  This option should
+      be passed by any workflow that is not used by LCM and does not
+      maintain the IdentityRequest model.  This avoids logging a warning
+      when the IdentityRequest is not found.
+    </Description>
+  </Variable>
+  <Variable initializer="false" input="true" name="trace">
+    <Description>
+      Used for debugging this subprocess and when set to true trace
+      statements will be sent to stdout.
+    </Description>
+  </Variable>
+  <Variable name="retries" output="true" type="integer">
+    <Description>
+       The number of retries performed during the execution
+       of the provisioning activities.
+    </Description>
+  </Variable>
+  <Variable name="retryProject">
+    <Description>
+      Project that is assembled for retry purposes, the parts of
+      original plan are broken into a separate plan that includes
+      only the account requests that need to be retried.
+
+      After each visit to retr this project will be rebuilt after
+      the previous execution results are assimimlated back onto
+      the "main" project.
+    </Description>
+  </Variable>
+
+  <Step icon="Start" name="Start">
+    <Transition to="Initialize Retries"/>
+  </Step>
+  <Step icon="Task" name="Initialize Retries">
+    <Description>
+      When visiting for the first time initalize the 
+      retry variable and avoid the sleep that we'll 
+      want when looping for retries.
+    </Description>
+    <Script>
+      <Source>
+      	import sailpoint.object.*;
+      	
+      	
+      	int tries =0;
+      	boolean ready = false;
+      	boolean stillLocked = true;
+      	
+      	while (!ready){
+	      	System.out.println("Try to break the lock");
+	      	try {
+	      		System.out.println("Do a decache to avoid the session association issue");
+	      		context.decache();
+	      		
+		      	System.out.println("Check and break lock");
+		      	Identity identity = project.getMasterPlan().getIdentity();
+		      	
+		      	if (identity == null){
+		      		identity = context.getObjectByName(Identity.class, project.getIdentity());
+		      	}
+		      	
+		      	
+		      	if (identity == null){
+		      		identity = context.getObjectByName(Identity.class, workflow.get("identityName"));
+		      	}
+		      	
+		      	if (identity != null){
+			      	String lock = identity.getLock();
+			      	
+			      	System.out.println("Have lock: " + lock);
+			      	
+			      	if (lock != null){
+			      		System.out.println("break lock: " + lock);
+			      		context.unlockObject(identity);
+			      	}
+			      	
+			      	
+			      	ready = true;
+			      	stillLocked = false;
+		      	} else {
+		      		System.out.println("No identity to unlock");
+		      		ready = true;
+		      		stillLocked = true;
+		      	}
+		      	
+		      	context.decache(identity);
+		      	identity = null;
+	      	} catch (Exception e){
+	      		System.out.println("Exception: " + e.toString());
+	      		tries +=1;
+	      		
+	      		if (tries > 3){
+	      			ready = true;
+	      		}
+	      		
+	      		
+	      	}
+      	}
+      	
+      	if (stillLocked){
+      		throw new Exception("Identity locked.  Don't provision.");
+      	}
+      	
+      	
+      
+        if ( retries == null ) { 
+            retries = new Integer(0); 
+        } else {
+            retries++;
+        }
+        
+        wfcontext.getWorkflowCase().put("retries", retries);
+      </Source>
+    </Script>
+    <Transition to="Wait for next retry" when="script:(retries > 0)"/>
+    <Transition to="Provision"/>
+  </Step>
+  <Step name="Wait for next retry" wait="ref:retryInterval">
+    <Description>
+      This is a sleep step and just waits to execute the next step.
+      Typically only called when we are retrying to give us some delay
+      between calls down to the PE. Skipped during the first loop.
+    </Description>
+    <Transition to="Provision Retry"/>
+  </Step>
+  <Step action="call:provisionProject" icon="Provision" name="Provision">
+    <Arg name="project" value="ref:project"/>
+    <Arg name="tempVal" value="ref:tempVal"/>
+    <Arg name="background" value="!ref:foregroundProvisioning"/>
+    <Arg name="noTriggers" value="true"/>
+    <Description> 
+       Call the typical provisionProject method during our first time
+       through the workflow.  If there are retries this step
+       will be skipped and should fall into the "Retry Provision"
+       step.
+
+       The only thing special here is the flag we specify to
+       the PlanEvaluator to prevent the Request object from
+       from being created if there are retries in the project.
+       Then we can handle them directly in the workflow looping 
+       until we are complete.
+    </Description>
+    <Transition to="Refresh Identity Request"/>
+  </Step>
+  <Step action="call:refreshIdentityRequestAfterProvisioning" name="Refresh Identity Request">
+    <Arg name="project" value="ref:project"/>
+    <Arg name="tempVal" value="ref:tempVal"/>
+    <Arg name="disableIdentityRequests" value="ref:disableIdentityRequests"/>
+    
+    <Description> 
+       Refresh the identity request to include provisioning results and
+       any other provisioning side effects in the project.
+       
+       Note that the disableIdentityRequests input variable is passed
+       to skip request processing if we're being called from a non-LCM workflow.
+       It is easier to pass this option than to transition around this step.
+    </Description>
+    <Transition to="Check for retry" when="!ref:enableRetryRequest"/>
+    <Transition to="End" when="ref:enableRetryRequest"/>
+  </Step>
+  <Step action="call:retryProvisionProject" icon="Provision" name="Provision Retry" resultVariable="retryProject">
+    <Arg name="project" value="ref:retryProject"/>
+    <Arg name="disableRetryRequest" value="true"/>
+    <Arg name="tempVal" value="ref:tempVal"/>
+    <Description> 
+       Call retryProvisionProject method that will retry the plans
+       in the project. Notice we pass in the retryProject which 
+       contains only the parts of the main project that need
+       to be retried.
+    </Description>
+    <Transition to="Merge Retry Project Results"/>
+  </Step>
+  <Step action="call:mergeRetryProjectResults" name="Merge Retry Project Results" resultVariable="project">
+    <Arg name="project" value="ref:project"/>
+    <Arg name="retryProject" value="ref:retryProject"/>
+    <Arg name="tempVal" value="ref:tempVal"/>
+    <Description>
+       Merge the results from the retry project back into the project.
+       This step will take and items that are no longer marked rety
+       over to the orginal project.
+    </Description>
+    <Transition to="Check for retry"/>
+  </Step>
+  <Step action="call:assembleRetryProject" icon="Task" name="Check for retry" resultVariable="retryProject">
+    <Arg name="project" value="ref:project"/>
+    <Arg name="tempVal" value="ref:tempVal"/>
+    <Description> 
+       Dig into the project and look for things marked retryable.
+       Build an new plan that contains only the retryable parts.
+    </Description>
+    <Transition to="Update Identity Request" when="script:(retryProject != null)"/>
+    <Transition to="End"/>
+  </Step>
+  <Step action="call:refreshIdentityRequestAfterRetry" name="Update Identity Request">
+    <Arg name="project" value="ref:retryProject"/>
+    <Arg name="tempVal" value="ref:tempVal"/>
+    <Description> 
+       Update the Identity Request object with the retry details.
+    </Description>
+    <Transition to="Calculate Max Retry"/>
+  </Step>
+  <Step action="call:getProvisioningMaxRetries" name="Calculate Max Retry" resultVariable="maxRetries">
+    <Arg name="project" value="ref:retryProject"/>
+    <Arg name="tempVal" value="ref:tempVal"/>
+    <Description> 
+       Calculate the maxRetries variable by digging into the
+       retry project in an attempt to resolve the maxRetries 
+       from the applications that are involved falling back
+       to a system config.
+
+       Use the maxRetries to drive if we continue to loop or end.
+    </Description>
+    <Transition to="Calculate Retry Threshold"/>
+  </Step>
+  <Step action="call:getProvisioningRetryThreshold" name="Calculate Retry Threshold" resultVariable="retryInterval">
+    <Arg name="project" value="ref:retryProject"/>
+    <Description> 
+       Calculate the retryInterval variable by digging into the
+       retry project in an attempt to resolve the maxRetries 
+       from the applications that are involved falling back
+       to the workflow setting.
+    </Description>
+    <Transition to="Start" when="script:( ( retryProject != null ) &amp;&amp; ( maxRetries == -1 || retries &lt; maxRetries ) )"/>
+    <Transition to="Timeout" when="script:( ( retryProject != null ) &amp;&amp;( retries >= maxRetries ) )"/>
+    <Transition to="End"/>
+  </Step>
+  <Step action="call:addMessage" name="Timeout">
+    <Arg name="message" value="Retry timeout occured."/>
+    <Description> 
+       Update the Identity Request object with the retry timeout status;
+    </Description>
+    <Transition to="End"/>
+  </Step>
+  <Step icon="Stop" name="End"/>
+</Workflow>

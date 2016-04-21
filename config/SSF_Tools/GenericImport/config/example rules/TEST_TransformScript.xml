@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="TEST_TransformScript">
+  <Description>Remove identities which have zebra-contractors association.</Description>
+  <Signature returnType="void">
+    
+  </Signature>
+  <Source><![CDATA[
+	//Transform Script
+
+	transform.put("workgroup.name", row.get("a_workgroup_name"));
+	transform.put("workgroup.description", row.get("description"));
+	transform.put("workgroup.owner", row.get("owner"));
+	transform.put("workgroup.members", row.get("member"));
+
+	return transform;
+
+	
+	]]></Source>
+</Rule>

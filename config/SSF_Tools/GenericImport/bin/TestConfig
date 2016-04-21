@@ -1,0 +1,43 @@
+
+
+	
+Then we transform this:
+
+Identity { 
+	inScript{
+	
+		HashMap<String,Object> fields;
+	
+		all fields are initially set as string
+		user can transform them here. such as:
+	
+		beanshell, to transform values
+		passes the fields hashmap
+		
+		fields.put("dob",new SimpleDateFormat("MM/dd/yyyy").parse(fields.get("dob"));
+		fields.put("number", Integer.pareseInt(fields.get("number"));
+		
+		// We could do with a helper here to avoid NPE's
+		
+	}
+	outScript{
+		// used just before committing the object being created
+		passes the Identity object in this case
+		Object is object;
+		
+	}
+	.setName(PersonName)		// We can assume a data type if it's not an overridden method
+	.setDisplayName(PersonName)
+	.setAttribute("DOB",(Date) dob)
+	.setAttribute("Department",(String) department)		// Can take literals, such as "Department", true/false
+														// If the parameter is Object type, then we will need to coerce
+	.setManager(Identity {
+			.setName(ManagersName)
+			.setDisplayName(String ManagersDisplayName)
+		})
+	.add(Bundle {
+		name=roleName
+		})
+		
+}
+

@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell"  name="SP Dynamic Field Value With Default Rule" type="FieldValue">
+  <Description>Dynamically get the field value.</Description>
+  <Signature returnType="Object"/>
+  <ReferencedRules>
+    <Reference class="sailpoint.object.Rule" name="SP Field Value Rules Library"/>
+	<Reference class="sailpoint.object.Rule" name="%%SP_CUSTOM_FV_RULE_LIBRARY_NAME%%"/>
+  </ReferencedRules>
+  <Source>
+	return getDynamicFieldValueWithDefaultRule(context, identity, field);
+  </Source>
+</Rule>

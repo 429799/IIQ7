@@ -1,0 +1,47 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE sailpoint PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<sailpoint>
+	<!-- *******************************************************************************************
+	WORKFLOW
+ *******************************************************************************************-->
+	<Workflow explicitTransitions="true"  name="SP REST Work Item Retriever WF" type="IdentityLifecycle">
+		<Description>
+		
+		This simple workflow can be called by a REST client to retrieve all work items 
+		associated to an identity.  
+		</Description>
+		
+	
+	  
+	  <Variable input="true" name="identityName">
+	    <Description>The name of the identity.</Description>
+	  </Variable>
+	  <Variable output="true" name="workItems">
+	  	<Description>The list of work items</Description>
+	  </Variable>
+	
+	  <Step icon="Start" monitored="true" name="Start" posX="2" posY="135">
+	    <Transition to="Get Work Items"/>
+	  </Step>
+	  <Step monitored="true" name="Get Work Items" resultVariable="workItems">
+	    <Script>
+	      <Source>
+	      <![CDATA[
+	      	import sailpoint.object.*;
+	      	
+	      	QueryOptions qo = new QueryOptions();
+	      	qo.addFilter(Filter.eq("owner.name", identityName));
+	      	
+	      	List workItems = context.getObjects(WorkItem.class, qo);
+	      	
+	      	return workItems;
+	      	
+	      ]]>
+	      </Source>
+	    </Script>
+	     <Transition to="Stop" />
+	  </Step>
+	  <Step icon="Stop" monitored="true" name="Stop" posX="960" posY="17"/>
+	</Workflow>
+
+</sailpoint>

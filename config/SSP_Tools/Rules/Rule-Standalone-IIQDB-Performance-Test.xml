@@ -1,0 +1,221 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE sailpoint PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<sailpoint>
+<Rule name='IIQDB Performance Test' language='beanshell'>
+  <Description>A Rule to evaluate DB Performance in the system.</Description>
+  <Signature returnType='RemediationItem'>
+    <Inputs>
+      <Argument name='context'>
+        <Description>
+          A sailpoint.api.SailPointContext object that can be used to
+          access the database.
+        </Description>
+      </Argument>
+      <Argument name="log">
+        <Description>
+          The log object associated with the SailPointContext.
+        </Description>
+      </Argument>      
+    </Inputs>    
+  </Signature>
+  <Source>
+    <![CDATA[// ---
+// This rule tests database transaction speed storing records of various sizes.
+// This includes records of 1k, 4k, and 8k in database size.  This will show
+// any transaction or payload size variations that show in the environment.
+
+import java.lang.StringBuilder;
+import java.util.*;
+
+import org.apache.log4j.Logger;
+import org.apache.log4j.Level;
+
+import sailpoint.api.Meter;
+import sailpoint.api.Meter.MeterSet;
+import sailpoint.api.Terminator;
+
+import sailpoint.Version;
+
+import sailpoint.object.Custom;
+import sailpoint.object.Filter;
+import sailpoint.object.QueryOptions;
+
+Logger log = Logger.getLogger("com.sailpoint.IIQDBPerformanceTest");
+
+Meter.reset();
+
+// Note: only force this to debug when editing.  Otherwise leave it at warning.
+log.setLevel((Level) Level.WARN);
+log.setLevel((Level) Level.DEBUG);
+
+log.debug("Inside Rule: IIQDBPerformanceTest"); 
+
+// The number of records to test each size transaction with.
+int numRecords = 1000;
+
+
+/**
+ * Generate a pseudo-random string of a specified length.
+ * @param length
+ * @return String containing the new string/password.
+ */
+public static String generateString(int length) {
+	
+	static Random r = new Random();
+	StringBuilder newPass = new StringBuilder();
+	
+	for (int i=0; i<length; i++) {
+		char c = 'x';
+		
+		// first character of password can not be number;
+		int charTypeSeed = r.nextInt((i==0 ? 2 : 3));
+		switch (charTypeSeed) {
+		case 0:
+			// Generate a capital letter.
+			c = (char) (65 + r.nextInt(26));
+			break;
+		case 1:
+			// Generate a lower case letter
+			c = (char) (97 + r.nextInt(26));
+			break;
+		case 2:
+			// Generate a number character
+			c = (char) (48 + r.nextInt(10));
+			break;				
+		}
+		newPass.append(c);
+	}
+	
+	return newPass.toString();		
+}
+
+// Get some metadata for the performance report.
+String hostName = java.net.InetAddress.getLocalHost().getHostName();
+java.util.Date nowDate = new java.util.Date();
+String nowTimeStamp = (new java.sql.Timestamp(nowDate.getTime())).toString();
+String iiqVersion = Version.getFullVersion();
+
+log.debug("IdentityIQ Database Performance Test");
+log.debug("Vers: " + iiqVersion);
+log.debug("Host: " + hostName);
+log.debug("Date: " + nowTimeStamp);
+
+// HashMaps to store the data sets.
+HashMap dataSet1k = new HashMap();
+HashMap dataSet4k = new HashMap();
+HashMap dataSet8k = new HashMap();
+
+log.debug("HashMap data sets allocated.");
+
+// Generate the data sets to load.  We randomly generate strings of 1k, 4k, 8k in length. 
+log.debug("Populating 1k, 4k, 8k data set HashMaps for " + numRecords + " records...");
+
+Meter.enterByName("Generate-IIQDB-Test-DataSets");
+
+for (int i=0; i < numRecords; i++) {
+
+   String key1k = "record1k-" + i;
+   String val1k = generateString(1024);
+   dataSet1k.put(key1k, val1k);
+   
+   log.trace("key:" + key1k + " -- " + val1k);
+   
+   String key4k = "record4k-" + i;
+   String val4k = generateString(4096);
+   dataSet4k.put(key4k, val4k);
+   
+   String key8k = "record8k-" + i;
+   String val8k = generateString(8192);
+   dataSet8k.put(key8k, val8k);
+   
+   log.trace("key:" + key4k + " -- " + val4k); 
+
+}
+
+Meter.exitByName("Generate-IIQDB-Test-DataSets");
+
+log.debug("Data set HashMaps populated.");
+
+log.debug("Testing 1k data set...");
+Meter.enterByName("IIQDB-Test-DataSet-1k-All");
+for (String k : dataSet1k.keySet()) {
+   Meter.enterByName("IIQDB-Test-DataSet-1k-Item");
+   // A sailpoint "Custom" object to store items in the database under.
+   Custom dbCustom = new Custom();
+   dbCustom.setName(k);
+   dbCustom.put(k, dataSet1k.get(k));
+   context.saveObject(dbCustom);
+   context.commitTransaction();
+   Meter.exitByName("IIQDB-Test-DataSet-1k-Item");
+}
+Meter.exitByName("IIQDB-Test-DataSet-1k-All");
+log.debug("Completed 1k data set.");
+
+log.debug("Testing 4k data set...");
+Meter.enterByName("IIQDB-Test-DataSet-4k-All");
+for (String k : dataSet4k.keySet()) {
+   Meter.enterByName("IIQDB-Test-DataSet-4k-Item");
+   Custom dbCustom = new Custom();
+   dbCustom.setName(k);
+   dbCustom.put(k, dataSet4k.get(k));
+   context.saveObject(dbCustom);
+   context.commitTransaction();
+   Meter.exitByName("IIQDB-Test-DataSet-4k-Item");
+}
+Meter.exitByName("IIQDB-Test-DataSet-4k-All");
+log.debug("Completed 4k data set.");
+
+log.debug("Testing 8k data set...");
+Meter.enterByName("IIQDB-Test-DataSet-8k-All");
+for (String k : dataSet4k.keySet()) {
+   Meter.enterByName("IIQDB-Test-DataSet-8k-Item");
+   Custom dbCustom = new Custom();
+   dbCustom.setName(k);
+   dbCustom.put(k, dataSet8k.get(k));
+   context.saveObject(dbCustom);
+   context.commitTransaction();
+   Meter.exitByName("IIQDB-Test-DataSet-8k-Item");
+}
+Meter.exitByName("IIQDB-Test-DataSet-8k-All");
+log.debug("Completed 8k data set.");
+
+// We need to support both newer and older IIQ versions.  The Meter API changed
+// with the 6.2 release of IdentityIQ to have a more thread vs. global control. 
+boolean usingIiq62OrNewer = true;
+if ( (iiqVersion.startsWith("3."))  ||
+     (iiqVersion.startsWith("4."))  ||
+     (iiqVersion.startsWith("5."))  ||
+     (iiqVersion.startsWith("6.0")) ||
+     (iiqVersion.startsWith("6.1"))    ) {
+   usingIiq62OrNewer = false;
+}          
+ 
+MeterSet meterSet = null;
+if (usingIiq62OrNewer) {
+   meterSet = Meter.getThreadMeters();
+} else {
+   meterSet = Meter.getEffectiveMeters();
+}
+
+for (Meter m : meterSet.getMeters()) {
+   m.print();
+}
+
+log.debug("Cleaning up test objects in the database...");
+
+Terminator termin = new sailpoint.api.Terminator(context);
+
+QueryOptions opts = new QueryOptions();
+Filter filterCustoms = Filter.like("name", "record", Filter.MatchMode.START);
+opts.addFilter(filterCustoms);
+
+termin.deleteObjects(Custom.class, opts);
+
+log.debug("... done deleting DB Performance Test records.");
+
+return;
+    
+// ---]]>
+  </Source>
+</Rule>
+</sailpoint>

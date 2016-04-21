@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="services.standard.build.config.xml">
+
+    <!-- ********************************************************** -->
+    <!-- targets responsible for taking custom xml, doing environment token replacement and making a custom init.xml-->
+    <!-- ********************************************************** -->
+
+
+   <target name="import-stock">
+        <echo>Importing with: console iiqBeans -c "import '${build.iiqBinaryExtract}/WEB-INF/config/init.xml'"</echo>
+        <java classname="sailpoint.launch.Launcher" fork="true">
+            <!-- the second version here supports spaces in path names on Windows: -->
+            <!-- <arg line='console iiqBeans -c "import ${build.iiqBinaryExtract}/WEB-INF/config/init.xml"'/>  -->
+            <arg line="console iiqBeans -c &quot;import '${build.iiqBinaryExtract}/WEB-INF/config/init.xml'&quot;"/>
+            <classpath>
+                <pathelement path="${build.iiqBinaryExtract}/WEB-INF/classes"/>
+                <pathelement location="${build.iiqBinaryExtract}/WEB-INF/lib/identityiq.jar"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="import-custom" depends="prepareCustomConfig">
+        <echo>Importing objects with: console iiqBeans -c "import '${build.iiqBinaryExtract}/WEB-INF/config/sp.init-custom.xml'"</echo>
+        <java classname="sailpoint.launch.Launcher" fork="true">
+            <!-- the second version here supports spaces in path names on Windows: -->
+            <!-- <arg line='console iiqBeans -c "import ${build.iiqBinaryExtract}/WEB-INF/config/sp.init-custom.xml"'/> -->
+            <arg line="console iiqBeans -c &quot;import '${build.iiqBinaryExtract}/WEB-INF/config/sp.init-custom.xml'&quot;"/>
+            <classpath>
+                <pathelement path="${build.iiqBinaryExtract}/WEB-INF/classes"/>
+                <pathelement location="${build.iiqBinaryExtract}/WEB-INF/lib/identityiq.jar"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="import-lcm" depends="prepareCustomConfig">
+        <echo>Importing objects with: console iiqBeans -c "import '${build.iiqBinaryExtract}/WEB-INF/config/init-lcm.xml'"</echo>
+        <java classname="sailpoint.launch.Launcher" fork="true">
+            <!-- the second version here supports spaces in path names on Windows: -->
+            <!-- <arg line='console iiqBeans -c "import ${build.iiqBinaryExtract}/WEB-INF/config/sp.init-custom.xml"'/> -->
+            <arg line="console iiqBeans -c &quot;import '${build.iiqBinaryExtract}/WEB-INF/config/init-lcm.xml'&quot;"/>
+            <classpath>
+                <pathelement path="${build.iiqBinaryExtract}/WEB-INF/classes"/>
+                <pathelement location="${build.iiqBinaryExtract}/WEB-INF/lib/identityiq.jar"/>
+            </classpath>
+        </java>
+    </target>
+
+    <target name="runUpgrade">
+        <echo>running patch command for ${IIQVersion}${IIQPatchLevel}</echo>
+        <java classname="sailpoint.launch.Launcher" fork="true">
+            <!-- the second version here supports spaces in path names on Windows: -->
+            <!-- <arg line='console iiqBeans -c "import ${build.iiqBinaryExtract}/WEB-INF/config/init.xml"'/>  -->
+            <arg line="patch ${IIQVersion}${IIQPatchLevel}"/>
+            <classpath>
+                <pathelement path="${build.iiqBinaryExtract}/WEB-INF/classes"/>
+                <pathelement location="${build.iiqBinaryExtract}/WEB-INF/lib/identityiq.jar"/>
+            </classpath>
+        </java>
+    </target>
+	
+	<!-- Check fo an ignorefiles and set a property if one is found. -->
+	<available file="${target}.ignorefiles.properties"  property="ignorefiles.is.found"/>
+
+    <target name="build-inits" depends="validate">
+        <build-init initFile="${build.iiqBinaryExtract}/WEB-INF/config/sp.init-custom.xml">
+            <fileset dir="${build.iiqBinaryExtract}/WEB-INF/config">
+                <include name="custom/**/*.xml"/>
+                <include name="custom/**/*.jrxml"/>
+                <exclude name="custom/**/*-init.xml"/>
+                <exclude name="custom/**/*.hbm.xml"/>
+                <exclude name="custom/**/cert_*.xml"/>
+                <exclude name="custom/**/template*/*.xml"/>
+                <!-- Do not move over the template xml into the build dir -->
+                <exclude name="custom/**/*Template.xml"/>
+				<!-- Exclude items named in this target's excludes file: -->
+            	<excludesfile name="${target}.ignorefiles.properties" if="ignorefiles.is.found"/>
+            	
+            	<!-- A.DUNFEE = - CUSTOM EXCLUDE FOR UNIT TEST OBJECTS -->
+            	 <exclude name="custom/**/Args/**"/>
+            	 <exclude name="custom/**/*Args*"/>
+            </fileset>
+        </build-init>
+        <if>
+            <not>
+                <resourceexists>
+                    <file file="${build.iiqBinaryExtract}/WEB-INF/config/init-default_org.xml"/>
+                </resourceexists>
+            </not>
+            <then>
+                <move file="${build.iiqBinaryExtract}/WEB-INF/config/init.xml"
+                      tofile="${build.iiqBinaryExtract}/WEB-INF/config/init-default_org.xml" failonerror="true"/>
+            </then>
+        </if>
+        <if>
+            <equals arg1="${usingLcm}" arg2="true"/>
+            <then>
+                <echo message="--- TRUE ---"/>
+                <build-init initFile="${build.iiqBinaryExtract}/WEB-INF/config/init.xml">
+                    <fileset dir="${build.iiqBinaryExtract}/WEB-INF/config">
+                        <include name="init-default_org.xml"/>
+                        <include name="init-lcm.xml"/>  
+                        <include name="patch/*.xml"/>
+                        <include name="sp.init-custom.xml"/>
+                        <exclude name="**/*.hbm.xml"/>
+                    </fileset>
+                </build-init>
+            </then>
+            <else>
+                <echo message="--- FALSE ---"/>
+                <build-init initFile="${build.iiqBinaryExtract}/WEB-INF/config/init.xml">
+                    <fileset dir="${build.iiqBinaryExtract}/WEB-INF/config">
+                        <include name="init-default_org.xml"/>
+                        <include name="patch/*.xml"/>        
+                        <include name="sp.init-custom.xml"/>
+                        <exclude name="**/*.hbm.xml"/>
+                    </fileset>
+                </build-init>                
+            </else>
+        </if>
+    </target>
+
+
+    <target name="prepareCustomConfig" depends="init-properties,prepareFiles,build-inits">
+        <replaceregexp file="${build.iiqBinaryExtract}/WEB-INF/config/sp.init-custom.xml" match="\\" replace="/" flags="g" />
+        <replaceregexp file="${build.iiqBinaryExtract}/WEB-INF/config/init.xml" match="\\" replace="/" flags="g" />
+    </target>
+
+    <target name="prepareFiles">
+        <delete dir="${build.customXMLDir}"/>
+        <copy todir="${build.customXMLDir}">
+            <fileset dir="config">
+                <!-- if you have XML that is a template for automatic configuration generation then please user the
+                following name convention-->
+                <exclude name="**/*Template.xml"/>
+            </fileset>
+        </copy>
+        <replace dir="${build.customXMLDir}" replacefilterfile="${target}.target.properties" includes="**/*.xml"/>
+
+        <!-- use a custom iiq properties file for a target -->
+        <copy file="${target}.iiq.properties" tofile="${build.iiqBinaryExtract}/WEB-INF/classes/iiq.properties"
+              failonerror="false" overwrite="true"/>
+    </target>
+
+    <!-- ********************************************************** -->
+    <!-- Target: strip-ids                                          -->
+    <!-- Strip out id modified and created tags from custom xml     -->
+    <!-- ********************************************************** -->
+    <target name="-strip-ids">
+        <echo message="Removing hibernate object attributes from xml files"/>
+        <replaceregexp flags="g">
+            <regexp pattern="\s(id|created|modified)=[&quot;']\w+[&quot;']"/>
+            <substitution expression=""/>
+            <fileset dir="${build.customXMLDir}">
+                <include name="**/*.xml"/>
+                <!--<exclude name="**/${init-file}" />-->
+            </fileset>
+        </replaceregexp>
+    </target>
+
+    <!-- ********************************************************** -->
+    <!-- Target: validate                                           -->
+    <!-- Validate custom XML files                                  -->
+    <!-- ********************************************************** -->
+    <target name="validate" depends="-strip-ids">
+        <echo message="Validating Custom XML objects"/>
+    	<echo message="${build.customXMLDir}"/>
+        <xmlvalidate>
+        	<!--
+        	 <fileset dir="${build.customXMLDir}" includes="**/*.xml" />
+        	-->
+            <fileset dir="${build.customXMLDir}">
+            	<include name="**/*.xml"/>
+            	
+            	<!-- A.DUNFEE = - CUSTOM EXCLUDE FOR UNIT TEST OBJECTS -->
+            	<exclude name="**/Args/**"/>
+            	<exclude name="**/*Args*"/>
+            	
+            </fileset>
+            <xmlcatalog>
+                <dtd publicId="sailpoint.dtd" location="${dtd}"/>
+            </xmlcatalog>
+        </xmlvalidate>
+    </target>
+
+</project>

@@ -1,0 +1,13 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="TEST_InitScript">
+  <Signature returnType="void">
+    
+  </Signature>
+  <Source><![CDATA[
+
+	if (log.isDebugEnabled()) log.debug("Initializing import");
+		
+	
+	]]></Source>
+</Rule>

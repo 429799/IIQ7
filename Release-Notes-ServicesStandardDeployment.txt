@@ -1,0 +1,55 @@
+Release:ssd_v1GA 
+Revision:$Rev: 119 $
+
+****************************************
+OVERVIEW OF RELEASE
+****************************************
+
+Version 1 of consolidated Services Standard Deployment (SSD) package combines the SSB and SSF, project documentation
+templates, and test and performance tools.  
+
+****************************************
+NEW TO THIS RELEASE:
+****************************************
+SSD:	First GA release to SailPoint community.  
+
+SSB: No updates since SSB 1.5 release
+
+SSF:
+	- Small fixes to Approval framework
+	- Approval framework support for Electronic Signature
+	- Approval framework support for custom approval forms  
+	- XML Exporter Task
+	- Report Extractor
+
+SSP:	No updates
+
+SST:  	No updates
+
+****************************************
+SUMMARY OF SSD
+****************************************
+The SSD contains (or will contain) the following packages:
+
+Services Standard Build (SSB) - Standard packaging and build process.
+Services Standard Frameworks (SSF) - Reusable frameworks, features and tools.  
+Services Standard Words (SSW) - Document templates.
+Services Standard Performance (SSP) - Performance tools
+Services Standard Test (SST) - Testing tools
+
+****************************************
+SUMMARY OF CONTENTS
+****************************************
+
+SSB:  Standard identityIQ build including iiq, target, ignore files properties.
+
+
+SSF:  
+	Frameworks: Field value, role assignment, dynamic emails, approvals, provision processor
+	Features:  Joiner, Mover, Leaver, Attribute Synch
+	Tools:  Multi-threaded Beanshell Kit, Report Extractor, XML Exporter Task
+
+SSP: 
+	Tools: DB Performance Rule, Sizing Rule, DB Row Count Rule
+
+SST:  Future release

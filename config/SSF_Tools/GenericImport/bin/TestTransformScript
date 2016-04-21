@@ -1,0 +1,20 @@
+//Transform Script
+
+transform.put("sharedPath", row.get("PATH"));
+
+String[] groupParts = row.get("UID").split("\\\\");
+transform.put("groupName", groupParts[groupParts.length - 1]);
+
+List owners = tool.parse(row.get("ZB"),",");
+List parsedOwners = new ArrayList();
+
+for (String owner : owners) {
+	String[] ownerParts = owner.split("\\\\");
+	if ( ownerParts.length == 2 ) {
+		parsedOwners.add(ownerParts[1]);
+	}
+}
+
+transform.put("owners", parsedOwners );
+
+return transform;

@@ -1,0 +1,210 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule name="SP Terminate Identity Rules Library" language="beanshell">
+	<ReferencedRules>
+	    <Reference class="sailpoint.object.Rule" name="SP Provisioning Rules Library"/>
+    </ReferencedRules>
+	<Source>
+	<![CDATA[
+	import sailpoint.api.SailPointFactory;
+	import sailpoint.api.SailPointContext;
+	import sailpoint.api.Provisioner;
+	import sailpoint.object.*;
+	import sailpoint.object.ProvisioningPlan.AttributeRequest;
+	import sailpoint.object.ProvisioningPlan.AccountRequest;
+    import sailpoint.object.ProvisioningPlan.Operation; 
+	import sailpoint.tools.Util;
+    import sailpoint.tools.Message;
+    import sailpoint.tools.GeneralException;
+    import java.sql.Connection;
+	import java.sql.PreparedStatement;
+	import java.sql.ResultSet;
+	import java.sql.SQLException;
+	import java.sql.DriverManager;
+    import java.sql.Timestamp;
+	import java.util.*;
+	import java.text.*;
+	import javax.naming.Context;
+	import javax.naming.InitialContext;
+	import javax.sql.DataSource;
+	import sailpoint.api.PasswordGenerator;
+	import sailpoint.api.Matchmaker;
+	import sailpoint.api.IdentityService;
+	
+	
+    import org.apache.commons.logging.Log;
+	import org.apache.commons.logging.LogFactory;
+
+	private static Log tilogger = LogFactory.getLog("rule.SP.TerminateIdentity.RulesLibrary");
+	
+	public ProvisioningPlan getDynamicTerminateIdPlan(SailPointContext context, String identityName, Workflow workflow){
+		tilogger.trace("Enter getDynamicTerminateIdPlan");
+		
+		Identity identity = context.getObjectByName(Identity.class, identityName);
+		
+		ProvisioningPlan plan = getDynamicTerminateIdPlan (context, identity, workflow);
+		
+		return plan;
+	}
+	
+	public boolean initUseEntryForm(SailPointContext context, Workflow workflow){
+		tilogger.trace("Enter initUseEntryForm");
+		boolean flag = false;
+		Custom mappingObj = getTerminateIdMappingObject(context);
+		
+		String useForm = mappingObj.get("Use Custom Entry Form");
+		
+		flag = Boolean.parseBoolean(useForm);
+		
+		if (flag){
+			tilogger.trace("Get and add the entry form to the workflow");
+			String entryFormName = mappingObj.get("Entry Form Name");
+			
+			Form ef = context.getObjectByName(Form.class, entryFormName);
+			
+			if (ef != null){
+				tilogger.trace("Have entry form, add to workflow");
+				workflow.put("entryForm", ef);
+			}
+		}
+		
+		String confirmFormName = mappingObj.get("Confirm Form Name");
+		Form cf = context.getObjectByName(Form.class, confirmFormName);
+		
+		if (cf != null){
+			tilogger.trace("Have confirm form, add to workflow");
+			workflow.put("confirmForm", cf);
+		}
+		
+		tilogger.trace("Exit initUseEntryForm: " + flag);
+		return flag;
+	}
+	
+	public ProvisioningPlan getDynamicTerminateIdPlan(SailPointContext context, Identity identity){
+		tilogger.trace("Enter getDynamicTerminateIdPlan");
+		
+		ProvisioningPlan plan = new ProvisioningPlan();
+		plan.setIdentity(identity);	
+		
+		Custom mappingObj = getTerminateIdMappingObject(context);
+		
+		if (mappingObj != null){
+			tilogger.trace("Get the con types");
+			List conTypes = mappingObj.get("Plan Construction Types");
+			
+			boolean enableAccts = false;
+			List enAcctsList = new ArrayList();
+			List links = identity.getLinks();
+			List addedEnables = new ArrayList();
+			
+			if (conTypes.contains("Enable Accounts")){
+				tilogger.debug("Enable Accounts is true");
+				enableAccounts = true;
+				enAcctsList = mappingObj.get("Enable Accounts Applications");
+			}
+			
+			if (conTypes.contains("Dynamic Roles")){
+				tilogger.debug("Process Dynamic Roles for TerminateId");
+				plan = getDynamicRolesPlan(context, identity);
+			}
+			
+			if (conTypes.contains("Attribute Synch")){
+				tilogger.debug("Process Attribute Synch for TerminateId");
+				
+				AccountRequest.Operation acctOp = AccountRequest.Operation.Modify;
+				
+				for (Link link : links){
+					app = link.getApplication();
+					appName = app.getName();
+					nativeId = link.getNativeIdentity();
+					instance = link.getInstance();
+					
+					tilogger.debug("Check if also enable accounts");
+					if (enableAccounts && enAcctsList.contains(appName)){
+						acctOp = AccountRequest.Operation.Enable;
+					}
+					
+					tilogger.debug("Get attr requests for " + nativeId + ":" + instance + " on " + appName);
+					List attrReqs = getUpdateAttributeRequests(context, identity, link);
+					
+					tilogger.trace("Have attrReqs: " + attrReqs);
+					if (attrReqs != null && !attrReqs.isEmpty()){
+						
+						tilogger.debug("Attr reqs not null.  Build account request");
+						
+						AccountRequest acctReq = new AccountRequest(acctOp, appName, instance, nativeId);
+						acctReq.addAll(attrReqs);
+						
+						String ae = appName + "-" + instance + "-" + nativeId;
+						addedEnables.add(ae);
+						
+						tilogger.debug("Add account request: " + acctReq.toXml());
+						plan.add(acctReq);
+						
+					}
+				}
+			}
+			
+			if (conTypes.contains("Enable Accounts")){
+				tilogger.trace("Process Enable Accounts for TerminateId");
+				AccountRequest.Operation acctOp = AccountRequest.Operation.Enable;
+				
+				for (Link link : links){
+					app = link.getApplication();
+					appName = app.getName();
+					nativeId = link.getNativeIdentity();
+					instance = link.getInstance();
+					
+					String ae = appName + "-" + instance + "-" + nativeId;
+					AccountRequest acctReq = new AccountRequest(acctOp, appName, instance, nativeId);
+					
+					if (!addedEnables.contains(ae)){
+						tilogger.debug("Add account request: " + acctReq.toXml());
+						plan.add(acctReq);
+					}
+				}
+			}
+			
+			if (conTypes.contains("Custom Rule")){
+				tilogger.trace("Process Custom Rule for TerminateId");
+				String customRule = mappingObj.get("Plan Construction Custom Rule");
+				
+				HashMap params = new HashMap();
+				
+				params.put("context", context);
+				params.put("identity", identity);
+				params.put("plan", plan);
+				
+				try {
+					tilogger.trace("Run the rule");
+					plan = runFrameworkRule(context, customRule, params);
+				} catch (Exception re){
+					tilogger.error(" EXCEPTION RUNNING RULE/SCRIPT: " + re.toString());
+					return null;
+				}
+				
+			} 
+			
+			
+		}
+		
+		plan.setComments("Adding TerminateId Access");
+		
+		tilogger.trace("Set plan identity " + identity);
+		plan.setIdentity(identity);
+		
+		tilogger.trace("Exit getDynamicTerminateIdPlan: " + plan.toXml());
+		return plan;
+	}
+	
+	public static Custom getTerminateIdMappingObject(SailPointContext context){
+		tilogger.trace("Enter getTerminateIdMappingObject");
+		
+		Custom mappingObj = context.getObjectByName(Custom.class, "%%SP_TERMINATE_IDENTITY_CUSTOM_OBJECT_NAME%%");
+		tilogger.trace("Exit getTerminateIdMappingObject: " + mappingObj);
+		return mappingObj;
+	}
+	
+	]]>
+	</Source>
+</Rule>

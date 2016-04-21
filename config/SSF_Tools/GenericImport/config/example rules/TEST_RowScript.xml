@@ -1,0 +1,36 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell" name="TEST_RowScript">
+  <Description>Remove identities which have zebra-contractors association.</Description>
+  <Signature returnType="void">
+    
+  </Signature>
+  <Source><![CDATA[
+	// Ensure the entitlement exists.
+	import sailpoint.object.Identity;
+	
+	Identity wg = context.getObjectByName(Identity.class, row.get("workgroup.name"));
+	if (wg == null) {
+		wg = new Identity();
+		wg.setName(row.get("workgroup.name"));
+		wg.setWorkgroup(true);
+	}
+	
+	wg.setDescription(row.get("workgroup.description"));
+	
+	Identity owner = context.getObjectByName(Identity.class,row.get("workgroup.owner"));
+	wg.setOwner(owner);
+	
+	for (String idname  : row.get("workgroup.members")) {
+	
+		Identity id = context.getObjectByName(Identity.class, idname);
+		id.add(wg);
+	}
+	
+	print(row.get("workgroup.members"));
+	
+	context.saveObject(wg);
+	context.commitTransaction();
+	
+	]]></Source>
+</Rule>

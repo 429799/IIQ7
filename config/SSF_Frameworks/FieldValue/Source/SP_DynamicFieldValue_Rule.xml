@@ -1,0 +1,17 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<!DOCTYPE Rule PUBLIC "sailpoint.dtd" "sailpoint.dtd">
+<Rule language="beanshell"  name="SP Dynamic Field Value Rule" type="FieldValue">
+  <Description>Dynamically get the field value.</Description>
+  <Signature returnType="Object"/>
+  <ReferencedRules>
+    <Reference class="sailpoint.object.Rule" name="SP Field Value Rules Library"/>
+	<Reference class="sailpoint.object.Rule" name="%%SP_CUSTOM_FV_RULE_LIBRARY_NAME%%"/>
+  </ReferencedRules>
+  <Source>
+    import org.apache.commons.logging.Log;
+	import org.apache.commons.logging.LogFactory;
+
+	private static Log logger = LogFactory.getLog("rule.SP.FieldValue.RulesLibrary");
+	return getDynamicFieldValueRule(context, identity, field);
+  </Source>
+</Rule>
